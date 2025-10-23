@@ -1,0 +1,148 @@
+{
+  "version": "1.0",
+  "description": "Cinema Pro HDR 基线测试样片集合",
+  "clips": [
+    {
+      "id": "night_scene_01",
+      "name": "夜景-城市霓虹",
+      "type": "night_scene",
+      "duration_seconds": 12,
+      "resolution": "4096x2160",
+      "framerate": 24,
+      "description": "城市夜景，包含霓虹灯和路灯，测试暗部细节和高光控制",
+      "characteristics": ["low_light", "high_contrast", "neon_lights"],
+      "copyright": "© 2025 Cinema Pro HDR Test Assets - 仅用于技术测试"
+    },
+    {
+      "id": "night_scene_02", 
+      "name": "夜景-月光森林",
+      "type": "night_scene",
+      "duration_seconds": 12,
+      "resolution": "4096x2160",
+      "framerate": 24,
+      "description": "月光下的森林场景，测试极低光照下的细节保持",
+      "characteristics": ["very_low_light", "natural_moonlight", "shadow_detail"],
+      "copyright": "© 2025 Cinema Pro HDR Test Assets - 仅用于技术测试"
+    },
+    {
+      "id": "backlit_portrait_01",
+      "name": "逆光人像-室内窗光",
+      "type": "backlit_portrait", 
+      "duration_seconds": 12,
+      "resolution": "4096x2160",
+      "framerate": 24,
+      "description": "室内窗光逆光人像，测试肤色保持和高光回退",
+      "characteristics": ["backlight", "skin_tone", "window_light"],
+      "copyright": "© 2025 Cinema Pro HDR Test Assets - 仅用于技术测试"
+    },
+    {
+      "id": "backlit_portrait_02",
+      "name": "逆光人像-户外阳光",
+      "type": "backlit_portrait",
+      "duration_seconds": 12, 
+      "resolution": "4096x2160",
+      "framerate": 24,
+      "description": "户外强阳光逆光人像，测试极端逆光条件下的处理",
+      "characteristics": ["strong_backlight", "skin_tone", "sunlight"],
+      "copyright": "© 2025 Cinema Pro HDR Test Assets - 仅用于技术测试"
+    },
+    {
+      "id": "neon_01",
+      "name": "霓虹-商业街",
+      "type": "neon",
+      "duration_seconds": 12,
+      "resolution": "4096x2160", 
+      "framerate": 24,
+      "description": "商业街霓虹灯场景，测试饱和色彩和高亮处理",
+      "characteristics": ["saturated_colors", "neon_signs", "urban_night"],
+      "copyright": "© 2025 Cinema Pro HDR Test Assets - 仅用于技术测试"
+    },
+    {
+      "id": "neon_02",
+      "name": "霓虹-酒吧内景",
+      "type": "neon",
+      "duration_seconds": 12,
+      "resolution": "4096x2160",
+      "framerate": 24,
+      "description": "酒吧内霓虹装饰，测试混合光源和色彩饱和度",
+      "characteristics": ["mixed_lighting", "colored_neon", "interior"],
+      "copyright": "© 2025 Cinema Pro HDR Test Assets - 仅用于技术测试"
+    },
+    {
+      "id": "mist_01",
+      "name": "薄雾-山景日出",
+      "type": "mist",
+      "duration_seconds": 12,
+      "resolution": "4096x2160",
+      "framerate": 24,
+      "description": "山景日出薄雾，测试低对比度和渐变处理",
+      "characteristics": ["low_contrast", "gradients", "atmospheric"],
+      "copyright": "© 2025 Cinema Pro HDR Test Assets - 仅用于技术测试"
+    },
+    {
+      "id": "mist_02",
+      "name": "薄雾-湖面晨雾",
+      "type": "mist", 
+      "duration_seconds": 12,
+      "resolution": "4096x2160",
+      "framerate": 24,
+      "description": "湖面晨雾场景，测试柔和过渡和细微层次",
+      "characteristics": ["soft_transitions", "water_reflections", "morning_mist"],
+      "copyright": "© 2025 Cinema Pro HDR Test Assets - 仅用于技术测试"
+    },
+    {
+      "id": "highlight_peak_01",
+      "name": "高亮峰-金属反射",
+      "type": "highlight_peak",
+      "duration_seconds": 12,
+      "resolution": "4096x2160",
+      "framerate": 24,
+      "description": "金属表面强反射，测试极高亮度处理和细节保持",
+      "characteristics": ["specular_highlights", "metal_reflections", "peak_brightness"],
+      "copyright": "© 2025 Cinema Pro HDR Test Assets - 仅用于技术测试"
+    },
+    {
+      "id": "highlight_peak_02",
+      "name": "高亮峰-阳光直射",
+      "type": "highlight_peak",
+      "duration_seconds": 12,
+      "resolution": "4096x2160", 
+      "framerate": 24,
+      "description": "阳光直射场景，测试光源直视和光晕控制",
+      "characteristics": ["direct_sunlight", "lens_flare", "extreme_brightness"],
+      "copyright": "© 2025 Cinema Pro HDR Test Assets - 仅用于技术测试"
+    },
+    {
+      "id": "skin_tone_01",
+      "name": "肤色-自然光人像",
+      "type": "skin_tone",
+      "duration_seconds": 12,
+      "resolution": "4096x2160",
+      "framerate": 24,
+      "description": "自然光下多种肤色人像，测试肤色准确性",
+      "characteristics": ["natural_lighting", "diverse_skin_tones", "portrait"],
+      "copyright": "© 2025 Cinema Pro HDR Test Assets - 仅用于技术测试"
+    },
+    {
+      "id": "skin_tone_02", 
+      "name": "肤色-混合光源人像",
+      "type": "skin_tone",
+      "duration_seconds": 12,
+      "resolution": "4096x2160",
+      "framerate": 24,
+      "description": "混合光源下的人像，测试复杂光照下的肤色保持",
+      "characteristics": ["mixed_lighting", "skin_tone_accuracy", "complex_lighting"],
+      "copyright": "© 2025 Cinema Pro HDR Test Assets - 仅用于技术测试"
+    }
+  ],
+  "usage_notes": {
+    "purpose": "用于Cinema Pro HDR系统的视觉回归测试和ΔE/闪烁对齐",
+    "testing_requirements": [
+      "每个样片必须在三套预设下测试",
+      "记录ΔE00值用于回归对比",
+      "检测帧间闪烁和频域能量变化",
+      "验证单调性和C¹连续性"
+    ],
+    "copyright_notice": "所有样片仅用于Cinema Pro HDR技术测试，不得用于商业用途"
+  }
+}

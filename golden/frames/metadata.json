@@ -1,0 +1,138 @@
+{
+  "version": "1.0",
+  "description": "参考帧元数据 - 用于视觉回归测试",
+  "frames": [
+    {
+      "preset": "cinema_flat",
+      "clip_id": "night_scene_01",
+      "filename": "cinema_flat_night_scene_01_ref.exr",
+      "description": "cinema_flat 预设应用于 night_scene_01 的参考帧",
+      "expected_stats": {
+        "min_pq": 0.0,
+        "avg_pq": 0.18,
+        "max_pq": 1.0
+      }
+    },
+    {
+      "preset": "cinema_flat",
+      "clip_id": "backlit_portrait_01",
+      "filename": "cinema_flat_backlit_portrait_01_ref.exr",
+      "description": "cinema_flat 预设应用于 backlit_portrait_01 的参考帧",
+      "expected_stats": {
+        "min_pq": 0.0,
+        "avg_pq": 0.18,
+        "max_pq": 1.0
+      }
+    },
+    {
+      "preset": "cinema_flat",
+      "clip_id": "neon_01",
+      "filename": "cinema_flat_neon_01_ref.exr",
+      "description": "cinema_flat 预设应用于 neon_01 的参考帧",
+      "expected_stats": {
+        "min_pq": 0.0,
+        "avg_pq": 0.18,
+        "max_pq": 1.0
+      }
+    },
+    {
+      "preset": "cinema_flat",
+      "clip_id": "mist_01",
+      "filename": "cinema_flat_mist_01_ref.exr",
+      "description": "cinema_flat 预设应用于 mist_01 的参考帧",
+      "expected_stats": {
+        "min_pq": 0.0,
+        "avg_pq": 0.18,
+        "max_pq": 1.0
+      }
+    },
+    {
+      "preset": "cinema_punch",
+      "clip_id": "night_scene_01",
+      "filename": "cinema_punch_night_scene_01_ref.exr",
+      "description": "cinema_punch 预设应用于 night_scene_01 的参考帧",
+      "expected_stats": {
+        "min_pq": 0.0,
+        "avg_pq": 0.18,
+        "max_pq": 1.0
+      }
+    },
+    {
+      "preset": "cinema_punch",
+      "clip_id": "backlit_portrait_01",
+      "filename": "cinema_punch_backlit_portrait_01_ref.exr",
+      "description": "cinema_punch 预设应用于 backlit_portrait_01 的参考帧",
+      "expected_stats": {
+        "min_pq": 0.0,
+        "avg_pq": 0.18,
+        "max_pq": 1.0
+      }
+    },
+    {
+      "preset": "cinema_punch",
+      "clip_id": "neon_01",
+      "filename": "cinema_punch_neon_01_ref.exr",
+      "description": "cinema_punch 预设应用于 neon_01 的参考帧",
+      "expected_stats": {
+        "min_pq": 0.0,
+        "avg_pq": 0.18,
+        "max_pq": 1.0
+      }
+    },
+    {
+      "preset": "cinema_punch",
+      "clip_id": "mist_01",
+      "filename": "cinema_punch_mist_01_ref.exr",
+      "description": "cinema_punch 预设应用于 mist_01 的参考帧",
+      "expected_stats": {
+        "min_pq": 0.0,
+        "avg_pq": 0.18,
+        "max_pq": 1.0
+      }
+    },
+    {
+      "preset": "cinema_highlight",
+      "clip_id": "night_scene_01",
+      "filename": "cinema_highlight_night_scene_01_ref.exr",
+      "description": "cinema_highlight 预设应用于 night_scene_01 的参考帧",
+      "expected_stats": {
+        "min_pq": 0.0,
+        "avg_pq": 0.18,
+        "max_pq": 1.0
+      }
+    },
+    {
+      "preset": "cinema_highlight",
+      "clip_id": "backlit_portrait_01",
+      "filename": "cinema_highlight_backlit_portrait_01_ref.exr",
+      "description": "cinema_highlight 预设应用于 backlit_portrait_01 的参考帧",
+      "expected_stats": {
+        "min_pq": 0.0,
+        "avg_pq": 0.18,
+        "max_pq": 1.0
+      }
+    },
+    {
+      "preset": "cinema_highlight",
+      "clip_id": "neon_01",
+      "filename": "cinema_highlight_neon_01_ref.exr",
+      "description": "cinema_highlight 预设应用于 neon_01 的参考帧",
+      "expected_stats": {
+        "min_pq": 0.0,
+        "avg_pq": 0.18,
+        "max_pq": 1.0
+      }
+    },
+    {
+      "preset": "cinema_highlight",
+      "clip_id": "mist_01",
+      "filename": "cinema_highlight_mist_01_ref.exr",
+      "description": "cinema_highlight 预设应用于 mist_01 的参考帧",
+      "expected_stats": {
+        "min_pq": 0.0,
+        "avg_pq": 0.18,
+        "max_pq": 1.0
+      }
+    }
+  ]
+}
