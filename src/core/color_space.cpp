@@ -6,9 +6,11 @@ namespace CinemaProHDR {
 
 // PQ EOTF function (ST 2084)
 float ColorSpaceConverter::PQ_EOTF(float pq_value) {
-    if (pq_value <= 0.0f) return 0.0f;
+    // Handle edge cases
+    if (!std::isfinite(pq_value) || pq_value <= 0.0f) return 0.0f;
     if (pq_value >= 1.0f) return 10000.0f;
     
+    // ST 2084 EOTF formula
     float pq_pow = std::pow(pq_value, 1.0f / PQ_M2);
     float numerator = std::max(0.0f, pq_pow - PQ_C1);
     float denominator = PQ_C2 - PQ_C3 * pq_pow;
@@ -21,7 +23,8 @@ float ColorSpaceConverter::PQ_EOTF(float pq_value) {
 
 // PQ OETF function (ST 2084)
 float ColorSpaceConverter::PQ_OETF(float linear_value) {
-    if (linear_value <= 0.0f) return 0.0f;
+    // Handle edge cases
+    if (!std::isfinite(linear_value) || linear_value <= 0.0f) return 0.0f;
     
     float normalized = linear_value / 10000.0f; // Normalize from cd/m²
     if (normalized >= 1.0f) return 1.0f;
@@ -66,13 +69,21 @@ void ColorSpaceConverter::BT2020_to_XYZ(const float* bt2020, float* xyz) {
 }
 
 void ColorSpaceConverter::XYZ_to_BT2020(const float* xyz, float* bt2020) {
-    // Inverse of BT2020_TO_XYZ_MATRIX
+    // Inverse of BT2020_TO_XYZ_MATRIX (computed using proper matrix inversion)
     static constexpr float XYZ_TO_BT2020_MATRIX[9] = {
          1.7166511f, -0.3556708f, -0.2533663f,
         -0.6666844f,  1.6164812f,  0.0157685f,
          0.0176399f, -0.0427706f,  0.9421031f
     };
     MultiplyMatrix3x3(XYZ_TO_BT2020_MATRIX, xyz, bt2020);
+}
+
+void ColorSpaceConverter::BT2020_to_ACEScg(const float* bt2020, float* acesg) {
+    MultiplyMatrix3x3(BT2020_TO_ACESG_MATRIX, bt2020, acesg);
+}
+
+void ColorSpaceConverter::ACEScg_to_BT2020(const float* acesg, float* bt2020) {
+    MultiplyMatrix3x3(ACESG_TO_BT2020_MATRIX, acesg, bt2020);
 }
 
 void ColorSpaceConverter::ToWorkingDomain(const Image& input, Image& output) {
@@ -85,6 +96,13 @@ void ColorSpaceConverter::ToWorkingDomain(const Image& input, Image& output) {
             float* dst_pixel = output.GetPixel(x, y);
             
             if (src_pixel && dst_pixel) {
+                // Validate input pixel
+                if (!NumericalUtils::IsFiniteRGB(src_pixel)) {
+                    // Handle NaN/Inf input - set to black
+                    dst_pixel[0] = dst_pixel[1] = dst_pixel[2] = 0.0f;
+                    continue;
+                }
+                
                 // Convert to working domain (BT.2020 + PQ normalized)
                 switch (input.color_space) {
                     case ColorSpace::BT2020_PQ:
@@ -95,25 +113,39 @@ void ColorSpaceConverter::ToWorkingDomain(const Image& input, Image& output) {
                         break;
                         
                     case ColorSpace::P3_D65: {
-                        // P3-D65 to BT.2020
-                        float bt2020_rgb[3];
-                        P3D65_to_BT2020(src_pixel, bt2020_rgb);
+                        // P3-D65 linear to BT.2020 linear
+                        float bt2020_linear[3];
+                        P3D65_to_BT2020(src_pixel, bt2020_linear);
                         
-                        // Apply PQ OETF
-                        PQ_OETF_RGB(bt2020_rgb, dst_pixel);
+                        // Apply PQ OETF to get normalized PQ values
+                        PQ_OETF_RGB(bt2020_linear, dst_pixel);
+                        break;
+                    }
+                    
+                    case ColorSpace::ACESG: {
+                        // ACEScg to BT.2020 linear
+                        float bt2020_linear[3];
+                        ACEScg_to_BT2020(src_pixel, bt2020_linear);
+                        
+                        // Apply PQ OETF to get normalized PQ values
+                        PQ_OETF_RGB(bt2020_linear, dst_pixel);
                         break;
                     }
                     
                     default:
-                        // Fallback: assume already in correct format
+                        // Fallback: assume already in correct format but validate
                         dst_pixel[0] = src_pixel[0];
                         dst_pixel[1] = src_pixel[1];
                         dst_pixel[2] = src_pixel[2];
                         break;
                 }
                 
-                // Ensure values are in valid range
-                NumericalUtils::SaturateRGB(dst_pixel);
+                // Validate output and ensure values are in valid range [0, 1]
+                if (!NumericalUtils::IsFiniteRGB(dst_pixel)) {
+                    dst_pixel[0] = dst_pixel[1] = dst_pixel[2] = 0.0f;
+                } else {
+                    NumericalUtils::SaturateRGB(dst_pixel);
+                }
             }
         }
     }
@@ -129,6 +161,13 @@ void ColorSpaceConverter::FromWorkingDomain(const Image& input, Image& output, C
             float* dst_pixel = output.GetPixel(x, y);
             
             if (src_pixel && dst_pixel) {
+                // Validate input pixel
+                if (!NumericalUtils::IsFiniteRGB(src_pixel)) {
+                    // Handle NaN/Inf input - set to black
+                    dst_pixel[0] = dst_pixel[1] = dst_pixel[2] = 0.0f;
+                    continue;
+                }
+                
                 switch (target_cs) {
                     case ColorSpace::BT2020_PQ:
                         // Already in working domain
@@ -138,25 +177,39 @@ void ColorSpaceConverter::FromWorkingDomain(const Image& input, Image& output, C
                         break;
                         
                     case ColorSpace::P3_D65: {
-                        // Apply PQ EOTF first
-                        float linear_rgb[3];
-                        PQ_EOTF_RGB(src_pixel, linear_rgb);
+                        // Apply PQ EOTF first to get linear BT.2020
+                        float bt2020_linear[3];
+                        PQ_EOTF_RGB(src_pixel, bt2020_linear);
                         
-                        // BT.2020 to P3-D65
-                        BT2020_to_P3D65(linear_rgb, dst_pixel);
+                        // BT.2020 linear to P3-D65 linear
+                        BT2020_to_P3D65(bt2020_linear, dst_pixel);
+                        break;
+                    }
+                    
+                    case ColorSpace::ACESG: {
+                        // Apply PQ EOTF first to get linear BT.2020
+                        float bt2020_linear[3];
+                        PQ_EOTF_RGB(src_pixel, bt2020_linear);
+                        
+                        // BT.2020 linear to ACEScg
+                        BT2020_to_ACEScg(bt2020_linear, dst_pixel);
                         break;
                     }
                     
                     default:
-                        // Fallback: direct copy
+                        // Fallback: direct copy with validation
                         dst_pixel[0] = src_pixel[0];
                         dst_pixel[1] = src_pixel[1];
                         dst_pixel[2] = src_pixel[2];
                         break;
                 }
                 
-                // Ensure values are in valid range
-                NumericalUtils::SaturateRGB(dst_pixel);
+                // Validate output and clamp to target color space gamut
+                if (!NumericalUtils::IsFiniteRGB(dst_pixel)) {
+                    dst_pixel[0] = dst_pixel[1] = dst_pixel[2] = 0.0f;
+                } else {
+                    ClampToGamut(dst_pixel, target_cs);
+                }
             }
         }
     }
@@ -181,6 +234,142 @@ std::string ColorSpaceConverter::ColorSpaceToString(ColorSpace cs) {
         case ColorSpace::ACESG: return "ACEScg";
         case ColorSpace::REC709: return "REC709";
         default: return "UNKNOWN";
+    }
+}
+
+bool ColorSpaceConverter::IsInGamut(const float* rgb, ColorSpace cs) {
+    // Check if RGB values are within valid gamut boundaries
+    // For most color spaces, valid range is [0, 1] for normalized values
+    
+    switch (cs) {
+        case ColorSpace::BT2020_PQ:
+        case ColorSpace::P3_D65:
+        case ColorSpace::REC709:
+            // Standard gamuts: values should be in [0, 1] range
+            return rgb[0] >= 0.0f && rgb[0] <= 1.0f &&
+                   rgb[1] >= 0.0f && rgb[1] <= 1.0f &&
+                   rgb[2] >= 0.0f && rgb[2] <= 1.0f;
+                   
+        case ColorSpace::ACESG:
+            // ACEScg allows negative values for out-of-gamut colors
+            // But we still check for reasonable bounds to detect errors
+            return rgb[0] >= -0.5f && rgb[0] <= 2.0f &&
+                   rgb[1] >= -0.5f && rgb[1] <= 2.0f &&
+                   rgb[2] >= -0.5f && rgb[2] <= 2.0f;
+                   
+        default:
+            return false;
+    }
+}
+
+void ColorSpaceConverter::ClampToGamut(float* rgb, ColorSpace cs) {
+    switch (cs) {
+        case ColorSpace::BT2020_PQ:
+        case ColorSpace::P3_D65:
+        case ColorSpace::REC709:
+            // Clamp to [0, 1] range
+            rgb[0] = std::clamp(rgb[0], 0.0f, 1.0f);
+            rgb[1] = std::clamp(rgb[1], 0.0f, 1.0f);
+            rgb[2] = std::clamp(rgb[2], 0.0f, 1.0f);
+            break;
+            
+        case ColorSpace::ACESG:
+            // More permissive clamping for ACEScg
+            rgb[0] = std::clamp(rgb[0], -0.5f, 2.0f);
+            rgb[1] = std::clamp(rgb[1], -0.5f, 2.0f);
+            rgb[2] = std::clamp(rgb[2], -0.5f, 2.0f);
+            break;
+            
+        default:
+            // Fallback: basic [0, 1] clamping
+            NumericalUtils::SaturateRGB(rgb);
+            break;
+    }
+}
+
+float ColorSpaceConverter::GetGamutDistance(const float* rgb, ColorSpace cs) {
+    // Calculate how far the color is outside the valid gamut
+    // Returns 0.0 if in gamut, positive value if out of gamut
+    
+    float distance = 0.0f;
+    
+    switch (cs) {
+        case ColorSpace::BT2020_PQ:
+        case ColorSpace::P3_D65:
+        case ColorSpace::REC709: {
+            // Calculate distance from [0, 1] cube
+            for (int i = 0; i < 3; ++i) {
+                if (rgb[i] < 0.0f) {
+                    distance += rgb[i] * rgb[i];  // Squared distance below 0
+                } else if (rgb[i] > 1.0f) {
+                    float excess = rgb[i] - 1.0f;
+                    distance += excess * excess;  // Squared distance above 1
+                }
+            }
+            break;
+        }
+        
+        case ColorSpace::ACESG: {
+            // Calculate distance from [-0.5, 2.0] cube
+            for (int i = 0; i < 3; ++i) {
+                if (rgb[i] < -0.5f) {
+                    float deficit = rgb[i] + 0.5f;
+                    distance += deficit * deficit;
+                } else if (rgb[i] > 2.0f) {
+                    float excess = rgb[i] - 2.0f;
+                    distance += excess * excess;
+                }
+            }
+            break;
+        }
+        
+        default:
+            // Fallback: use [0, 1] range
+            for (int i = 0; i < 3; ++i) {
+                if (rgb[i] < 0.0f) {
+                    distance += rgb[i] * rgb[i];
+                } else if (rgb[i] > 1.0f) {
+                    float excess = rgb[i] - 1.0f;
+                    distance += excess * excess;
+                }
+            }
+            break;
+    }
+    
+    return std::sqrt(distance);
+}
+
+bool ColorSpaceConverter::ValidateColorSpaceTransform(ColorSpace from, ColorSpace to) {
+    // Validate that the transformation between color spaces is supported
+    
+    // All supported color spaces
+    if (!IsValidColorSpace(from) || !IsValidColorSpace(to)) {
+        return false;
+    }
+    
+    // Same color space is always valid (identity transform)
+    if (from == to) {
+        return true;
+    }
+    
+    // Check supported transformations
+    // We support transformations through BT.2020 as intermediate
+    switch (from) {
+        case ColorSpace::BT2020_PQ:
+            return to == ColorSpace::P3_D65 || to == ColorSpace::ACESG;
+            
+        case ColorSpace::P3_D65:
+            return to == ColorSpace::BT2020_PQ;
+            
+        case ColorSpace::ACESG:
+            return to == ColorSpace::BT2020_PQ;
+            
+        case ColorSpace::REC709:
+            // REC709 support can be added later if needed
+            return false;
+            
+        default:
+            return false;
     }
 }
 
