@@ -56,3 +56,7 @@ __pycache__/
 docs/_build/
 docs/html/
 docs/latex/
+
+# Third party dependencies (keep source but ignore build artifacts)
+third_party/*/build/
+third_party/*/.git/

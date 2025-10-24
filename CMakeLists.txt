@@ -24,6 +24,30 @@ option(USE_METAL "Enable Metal support" OFF)
 # Find packages
 find_package(Threads REQUIRED)
 
+# OpenFX SDK
+if(BUILD_OFX)
+    set(OFX_SDK_ROOT ${CMAKE_SOURCE_DIR}/third_party/openfx)
+    if(EXISTS ${OFX_SDK_ROOT})
+        message(STATUS "Found OpenFX SDK at ${OFX_SDK_ROOT}")
+        
+        # Add OpenFX include directories
+        include_directories(${OFX_SDK_ROOT}/include)
+        include_directories(${OFX_SDK_ROOT}/Support/include)
+        
+        # Add OpenFX Support library
+        add_subdirectory(${OFX_SDK_ROOT}/Support EXCLUDE_FROM_ALL)
+        
+        # Set OpenFX definitions
+        add_definitions(-DOFX_EXTENSIONS_VEGAS)
+        add_definitions(-DOFX_EXTENSIONS_NUKE)
+        add_definitions(-DOFX_EXTENSIONS_TUTTLE)
+        add_definitions(-DOFX_EXTENSIONS_NATRON)
+    else()
+        message(WARNING "OpenFX SDK not found. OFX plugin will not be built.")
+        set(BUILD_OFX OFF)
+    endif()
+endif()
+
 # CUDA support
 if(USE_CUDA)
     find_package(CUDA QUIET)
