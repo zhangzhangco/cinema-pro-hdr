@@ -13,7 +13,7 @@
   - 目的：CI的视觉回归与ΔE/闪烁对齐用统一参照
   - _需求: 7.4, 7.5, 8.1_
 
-- [ ] 1. 建立项目基础架构和核心接口
+- [x] 1. 建立项目基础架构和核心接口
   - 创建CMake构建系统，支持跨平台编译（Windows/macOS/Linux）
   - 定义核心数据结构：CphParams、Image、Statistics、ErrorReport
   - 实现基础的色彩空间转换函数：PQ EOTF/OETF、BT.2020/P3-D65矩阵
