@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="420" viewBox="0 0 920 420">
+  <defs>
+    <style>
+      .panel{fill:#f7f7f7;stroke:#bbb;}
+      .knob{fill:#fff;stroke:#333;stroke-width:1.5;}
+      .param{fill:#eef7ff;stroke:#6aa0ff;stroke-width:1.5;}
+      .map{stroke:#999;stroke-width:1.5;marker-end:url(#arrow);}
+      .title{font:600 14px sans-serif;}
+      .label{font:12px sans-serif;}
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,4 L0,8 z" fill="#666"/>
+    </marker>
+  </defs>
+
+  <text x="20" y="24" class="title">UI 五旋钮 → 内部参数映射</text>
+
+  <!-- Mappings (arrows) - 先画线条，这样它们会在框的下面 -->
+  <line x1="200" y1="132" x2="540" y2="132" class="map"/>
+  <line x1="200" y1="190" x2="540" y2="190" class="map"/>
+  <line x1="200" y1="248" x2="540" y2="248" class="map"/>
+  <line x1="380" y1="190" x2="710" y2="190" class="map"/>
+  <line x1="380" y1="248" x2="710" y2="248" class="map"/>
+  <line x1="200" y1="306" x2="710" y2="306" class="map"/>
+
+  <!-- UI Panel -->
+  <rect x="40" y="60" width="360" height="300" class="panel" rx="8"/>
+  <text x="60" y="86" class="title">OFX/DCTL 控件（UI）</text>
+
+  <!-- Knobs -->
+  <g>
+    <rect x="60" y="110" width="140" height="44" class="knob" rx="6"/>
+    <text x="130" y="137" text-anchor="middle" class="label">枢轴点（Pivot）</text>
+
+    <rect x="60" y="168" width="140" height="44" class="knob" rx="6"/>
+    <text x="130" y="195" text-anchor="middle" class="label">暗部对比度</text>
+
+    <rect x="60" y="226" width="140" height="44" class="knob" rx="6"/>
+    <text x="130" y="253" text-anchor="middle" class="label">高光对比度</text>
+
+    <rect x="220" y="168" width="160" height="44" class="knob" rx="6"/>
+    <text x="300" y="195" text-anchor="middle" class="label">高光滚降</text>
+
+    <rect x="220" y="226" width="160" height="44" class="knob" rx="6"/>
+    <text x="300" y="253" text-anchor="middle" class="label">高光细节</text>
+
+    <rect x="60" y="284" width="140" height="44" class="knob" rx="6"/>
+    <text x="130" y="311" text-anchor="middle" class="label">黑色提升</text>
+  </g>
+
+  <!-- Param Panel -->
+  <rect x="520" y="60" width="360" height="300" class="panel" rx="8"/>
+  <text x="540" y="86" class="title">内部参数（算法）</text>
+
+  <!-- Params -->
+  <g>
+    <rect x="540" y="110" width="160" height="44" class="param" rx="6"/>
+    <text x="620" y="137" text-anchor="middle" class="label">p（pivot）</text>
+
+    <rect x="540" y="168" width="160" height="44" class="param" rx="6"/>
+    <text x="620" y="195" text-anchor="middle" class="label">γs（暗部幂）</text>
+
+    <rect x="540" y="226" width="160" height="44" class="param" rx="6"/>
+    <text x="620" y="253" text-anchor="middle" class="label">γh（高光幂）</text>
+
+    <rect x="710" y="168" width="150" height="44" class="param" rx="6"/>
+    <text x="785" y="195" text-anchor="middle" class="label">h（肩部压缩）</text>
+
+    <rect x="710" y="226" width="150" height="44" class="param" rx="6"/>
+    <text x="785" y="253" text-anchor="middle" class="label">λ_hd（细节强度）</text>
+
+    <rect x="710" y="284" width="150" height="44" class="param" rx="6"/>
+    <text x="785" y="311" text-anchor="middle" class="label">t₀（toe）</text>
+  </g>
+
+  <!-- Notes -->
+  <text x="40" y="380" class="label">映射示例：γs = 1.0 + 0.6·S；γh = 0.8 + 0.6·H；h = 0.5 + 2.5·R；λ_hd ∈ [0,1]</text>
+</svg>

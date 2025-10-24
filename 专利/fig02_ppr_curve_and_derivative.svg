@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="660" height="420" viewBox="0 0 660 420">
+  <defs>
+    <style>
+      .axis{stroke:#333;stroke-width:1;}
+      .grid{stroke:#ddd;stroke-width:1;}
+      .curve1{fill:none;stroke:#2276e3;stroke-width:2.2;}
+      .curve2{fill:none;stroke:#26a269;stroke-width:2.2;}
+      .curveMix{fill:none;stroke:#c01c28;stroke-width:2.4;}
+      .deriv{fill:none;stroke:#ff7f00;stroke-dasharray:6 4;stroke-width:2;}
+      .label{font:12px sans-serif;}
+      .title{font:600 14px sans-serif;}
+    </style>
+  </defs>
+
+  <text x="20" y="24" class="title">PPR 曲线与导数示意（示例参数：p=0.18, γs=1.2, γh=1.1, h=1.5, Δ=0.1）</text>
+
+  <!-- Axes -->
+  <line x1="60" y1="360" x2="620" y2="360" class="axis"/>
+  <line x1="60" y1="60" x2="60" y2="360" class="axis"/>
+  <text x="620" y="380" class="label">x (PQ归一)</text>
+  <text x="30" y="65" class="label" transform="rotate(-90 30,65)">y / dy/dx</text>
+
+  <!-- Grid -->
+  <g>
+    <line x1="60" y1="300" x2="620" y2="300" class="grid"/>
+    <line x1="60" y1="240" x2="620" y2="240" class="grid"/>
+    <line x1="60" y1="180" x2="620" y2="180" class="grid"/>
+    <line x1="60" y1="120" x2="620" y2="120" class="grid"/>
+    <line x1="140" y1="60" x2="140" y2="360" class="grid"/>
+    <line x1="220" y1="60" x2="220" y2="360" class="grid"/>
+    <line x1="300" y1="60" x2="300" y2="360" class="grid"/>
+    <line x1="380" y1="60" x2="380" y2="360" class="grid"/>
+    <line x1="460" y1="60" x2="460" y2="360" class="grid"/>
+    <line x1="540" y1="60" x2="540" y2="360" class="grid"/>
+  </g>
+
+  <!-- p and Δ marks -->
+  <line x1="60+0" y1="0" x2="60+0" y2="0" visibility="hidden"/>
+  <line x1="60+96" y1="60" x2="60+96" y2="360" stroke="#888" stroke-dasharray="4 4"/>
+  <text x="156" y="374" class="label">p ≈ 0.18</text>
+  <line x1="60+60" y1="60" x2="60+60" y2="360" stroke="#bbb" stroke-dasharray="4 4"/>
+  <line x1="60+132" y1="60" x2="60+132" y2="360" stroke="#bbb" stroke-dasharray="4 4"/>
+  <text x="210" y="80" class="label">[p-Δ, p+Δ]</text>
+
+  <!-- Curves (sampled path) -->
+  <!-- We'll approximate curves with path data (not exact math) just for visualization -->
+  <!-- y_s (blue) -->
+  <path class="curve1" d="M60,360
+    C110,330 150,300 156,280
+    C160,270 166,250 180,240
+    C190,232 205,225 220,220
+    " />
+  <!-- y_h (green) -->
+  <path class="curve2" d="M156,240
+    C200,210 260,180 320,160
+    C380,140 440,130 500,126
+    C560,122 600,120 620,118
+  "/>
+  <!-- y mix (red) -->
+  <path class="curveMix" d="M60,360
+    C110,330 150,300 156,280
+    C190,250 240,210 300,185
+    C360,162 430,148 500,140
+    C560,134 600,130 620,128
+  "/>
+
+  <!-- derivative (orange dashed) -->
+  <path class="deriv" d="M60,330
+    C120,300 170,260 210,240
+    C260,215 330,195 400,185
+    C480,175 560,170 620,168
+  "/>
+
+  <!-- Legend -->
+  <rect x="400" y="70" width="235" height="75" fill="#fff" stroke="#ccc"/>
+  <line x1="410" y1="90" x2="440" y2="90" class="curve1"/>
+  <text x="448" y="94" class="label">y_s(x) 暗部幂段</text>
+  <line x1="410" y1="110" x2="440" y2="110" class="curve2"/>
+  <text x="448" y="114" class="label">y_h(x) 高光有理段</text>
+  <line x1="410" y1="130" x2="440" y2="130" class="curveMix"/>
+  <text x="448" y="134" class="label">y(x) 混合（C¹）</text>
+</svg>

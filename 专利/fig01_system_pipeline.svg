@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="240" viewBox="0 0 1180 240">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,4 L0,8 z" fill="black"/>
+    </marker>
+    <style>
+      .box{fill:#f7f7f7;stroke:#333;stroke-width:1.5;}
+      .title{font:600 14px sans-serif;}
+      .caption{font:12px sans-serif;}
+      .lane{fill:#eef7ff;stroke:#aac8ff;stroke-width:1;}
+    </style>
+  </defs>
+
+  <rect x="10" y="20" width="1160" height="200" class="lane" rx="8"/>
+  <text x="20" y="38" class="caption">Cinema Pro HDR 处理流水线（工作域：BT.2020+PQ；色度：OKLab）</text>
+
+  <!-- Nodes -->
+  <rect x="30" y="80" width="130" height="80" class="box" rx="6"/>
+  <text x="95" y="108" text-anchor="middle" class="title">输入</text>
+  <text x="95" y="128" text-anchor="middle" class="caption">源域 / RAW/LOG</text>
+
+  <rect x="190" y="80" width="170" height="80" class="box" rx="6"/>
+  <text x="275" y="108" text-anchor="middle" class="title">域转换</text>
+  <text x="275" y="128" text-anchor="middle" class="caption">→ BT.2020 + PQ 归一</text>
+
+  <rect x="380" y="80" width="170" height="80" class="box" rx="6"/>
+  <text x="465" y="105" text-anchor="middle" class="title">曲线映射</text>
+  <text x="465" y="125" text-anchor="middle" class="caption">PPR / RLOG（单调+C¹）</text>
+
+  <rect x="570" y="80" width="150" height="80" class="box" rx="6"/>
+  <text x="645" y="105" text-anchor="middle" class="title">细节层</text>
+  <text x="645" y="125" text-anchor="middle" class="caption">高光增强（阈值/运动保）</text>
+
+  <rect x="740" y="80" width="170" height="80" class="box" rx="6"/>
+  <text x="825" y="105" text-anchor="middle" class="title">OKLab 饱和</text>
+  <text x="825" y="125" text-anchor="middle" class="caption">基础 + 亮区分层</text>
+
+  <rect x="930" y="80" width="160" height="80" class="box" rx="6"/>
+  <text x="1010" y="105" text-anchor="middle" class="title">色域回扣</text>
+  <text x="1010" y="125" text-anchor="middle" class="caption">3×3线性 + 感知夹持</text>
+
+  <!-- Output -->
+  <text x="1120" y="120" class="title">输出</text>
+  <text x="1120" y="140" class="caption">目标域 / DCP 等</text>
+
+  <!-- Arrows -->
+  <line x1="160" y1="120" x2="190" y2="120" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="360" y1="120" x2="380" y2="120" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="550" y1="120" x2="570" y2="120" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="720" y1="120" x2="740" y2="120" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="910" y1="120" x2="930" y2="120" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="1090" y1="120" x2="1115" y2="120" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Notes -->
+  <text x="380" y="170" class="caption">Pivot p、γs、γh、h、soft-knee、toe</text>
+  <text x="740" y="170" class="caption">sat_base、sat_hi(x)、OKLab</text>
+</svg>

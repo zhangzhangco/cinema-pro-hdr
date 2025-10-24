@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480">
+  <defs>
+    <style>
+      .axis{stroke:#333;stroke-width:1;}
+      .grid{stroke:#eee;stroke-width:1;}
+      .circle{fill:none;stroke:#999;stroke-dasharray:4 3;}
+      .rad{stroke:#e31a1c;stroke-width:2;}
+      .cap{stroke:#1f78b4;stroke-width:2;}
+      .pt{fill:#e31a1c;stroke:#b00;stroke-width:1;}
+      .pt2{fill:#1f78b4;stroke:#105a8b;stroke-width:1;}
+      .label{font:12px sans-serif;}
+      .title{font:600 14px sans-serif;}
+    </style>
+  </defs>
+
+  <text x="20" y="24" class="title">OKLab 分层饱和与色域半径夹持（C–L 平面）</text>
+  <!-- Axes -->
+  <line x1="80" y1="420" x2="580" y2="420" class="axis"/>
+  <line x1="80" y1="80" x2="80" y2="420" class="axis"/>
+  <text x="580" y="440" class="label">Chroma C (√(a²+b²))</text>
+  <text x="60" y="85" class="label" transform="rotate(-90 60,85)">Lightness L</text>
+
+  <!-- Grid -->
+  <g>
+    <line x1="80" y1="380" x2="580" y2="380" class="grid"/>
+    <line x1="80" y1="340" x2="580" y2="340" class="grid"/>
+    <line x1="80" y1="300" x2="580" y2="300" class="grid"/>
+    <line x1="80" y1="260" x2="580" y2="260" class="grid"/>
+    <line x1="80" y1="220" x2="580" y2="220" class="grid"/>
+    <line x1="80" y1="180" x2="580" y2="180" class="grid"/>
+  </g>
+
+  <!-- Cmax(L) envelope (schematic) -->
+  <path d="M80,380 C200,360 240,320 280,260 C320,200 380,160 580,150" class="circle"/>
+
+  <!-- Before saturation: point -->
+  <circle cx="300" cy="300" r="5" class="pt"/>
+  <text x="310" y="295" class="label">原点 (L0, C0)</text>
+
+  <!-- After base+hi saturation (radial move) -->
+  <line x1="300" y1="300" x2="380" y2="290" class="rad"/>
+  <circle cx="380" cy="290" r="5" class="pt"/>
+  <text x="390" y="285" class="label">饱和后 (L0, C1)</text>
+
+  <!-- Clamp to Cmax(L) -->
+  <line x1="380" y1="290" x2="350" y2="280" class="cap"/>
+  <circle cx="350" cy="280" r="5" class="pt2"/>
+  <text x="360" y="275" class="label">夹持后 (L0, C*)</text>
+
+  <!-- Legend -->
+  <rect x="380" y="80" width="220" height="90" fill="#fff" stroke="#ccc"/>
+  <line x1="390" y1="100" x2="420" y2="100" class="rad"/>
+  <text x="428" y="104" class="label">分层饱和（向外）</text>
+  <line x1="390" y1="120" x2="420" y2="120" class="cap"/>
+  <text x="428" y="124" class="label">Cmax(L) 夹持（向内）</text>
+  <line x1="390" y1="140" x2="420" y2="140" class="circle"/>
+  <text x="428" y="144" class="label">Cmax(L) 包络示意</text>
+</svg>

@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="660" height="380" viewBox="0 0 660 380">
+  <defs>
+    <style>
+      .axis{stroke:#333;stroke-width:1;}
+      .grid{stroke:#eee;stroke-width:1;}
+      .log{fill:none;stroke:#1f78b4;stroke-width:2.4;}
+      .rat{fill:none;stroke:#33a02c;stroke-width:2.4;}
+      .mix{fill:none;stroke:#e31a1c;stroke-width:2.6;}
+      .label{font:12px sans-serif;}
+      .title{font:600 14px sans-serif;}
+      .band{fill:rgba(255,215,0,0.15);stroke:#f0c000;stroke-dasharray:4 4;}
+    </style>
+  </defs>
+
+  <text x="20" y="24" class="title">RLOG 拼接示意（t±δ 过渡带；a=6, b=1.0, c=1.2, t=0.55, δ=0.05）</text>
+
+  <line x1="60" y1="320" x2="620" y2="320" class="axis"/>
+  <line x1="60" y1="60" x2="60" y2="320" class="axis"/>
+  <text x="620" y="340" class="label">x</text>
+  <text x="38" y="70" class="label" transform="rotate(-90 38,70)">y</text>
+
+  <!-- Transition band t±δ -->
+  <rect x="60+330" y="60" width="60" height="260" class="band"/>
+  <text x="390" y="56" class="label">过渡带 [t-δ, t+δ]</text>
+  <line x1="390" y1="60" x2="390" y2="320" stroke="#f0c000" stroke-dasharray="4 4"/>
+  <line x1="450" y1="60" x2="450" y2="320" stroke="#f0c000" stroke-dasharray="4 4"/>
+
+  <!-- Curves (schematic) -->
+  <path class="log" d="M60,300 C140,280 220,250 300,220 C340,205 360,190 380,180"/>
+  <path class="rat" d="M450,170 C500,160 540,150 580,140 C600,136 610,132 620,130"/>
+  <path class="mix" d="M60,300 C140,280 220,250 300,220 C350,200 420,180 510,160 C560,150 600,142 620,138"/>
+
+  <!-- Legend -->
+  <rect x="410" y="70" width="220" height="80" fill="#fff" stroke="#ccc"/>
+  <line x1="420" y1="90" x2="450" y2="90" class="log"/>
+  <text x="458" y="94" class="label">y_s(x) 暗部对数</text>
+  <line x1="420" y1="110" x2="450" y2="110" class="rat"/>
+  <text x="458" y="114" class="label">y_h(x) 高光有理</text>
+  <line x1="420" y1="130" x2="450" y2="130" class="mix"/>
+  <text x="458" y="134" class="label">y(x) 混合（C¹）</text>
+</svg>
