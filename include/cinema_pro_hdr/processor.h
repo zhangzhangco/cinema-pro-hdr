@@ -39,6 +39,13 @@ private:
     void UpdateStatistics(const Image& processed_frame);
     void LogError(ErrorCode code, const std::string& message, 
                   const std::string& field = "", float value = 0.0f);
+    
+    // Tone mapping functions
+    void ApplyToneMappingToImage(Image& working_image);
+    void ValidateCurveProperties();
+    
+    // Saturation processing functions
+    void ApplySaturationProcessing(Image& working_image);
 };
 
 // Parameter validation utilities

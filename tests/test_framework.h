@@ -136,4 +136,24 @@ private:
         } \
     } while(0)
 
+#define ASSERT_GE(value, threshold) \
+    do { \
+        if ((value) < (threshold)) { \
+            std::cout << "ASSERTION FAILED: " << #value << " >= " << #threshold \
+                      << " (value: " << (value) << ", threshold: " << (threshold) << ")" \
+                      << " at " << __FILE__ << ":" << __LINE__ << std::endl; \
+            return false; \
+        } \
+    } while(0)
+
+#define ASSERT_LE(value, threshold) \
+    do { \
+        if ((value) > (threshold)) { \
+            std::cout << "ASSERTION FAILED: " << #value << " <= " << #threshold \
+                      << " (value: " << (value) << ", threshold: " << (threshold) << ")" \
+                      << " at " << __FILE__ << ":" << __LINE__ << std::endl; \
+            return false; \
+        } \
+    } while(0)
+
 } // namespace TestFramework

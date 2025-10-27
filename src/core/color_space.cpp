@@ -432,4 +432,295 @@ float NumericalUtils::ClampToRange(float value, float min_val, float max_val) {
     return std::clamp(value, min_val, max_val);
 }
 
+// OKLab conversion helper functions
+float ColorSpaceConverter::CubeRoot(float x) {
+    if (x >= 0.0f) {
+        return std::pow(x, 1.0f / 3.0f);
+    } else {
+        return -std::pow(-x, 1.0f / 3.0f);
+    }
+}
+
+float ColorSpaceConverter::CubePower(float x) {
+    return x * x * x;
+}
+
+// RGB to OKLab conversion
+void ColorSpaceConverter::RGB_to_OKLab(const float* rgb, float* oklab) {
+    // 验证输入
+    if (!NumericalUtils::IsFiniteRGB(rgb)) {
+        oklab[0] = oklab[1] = oklab[2] = 0.0f;
+        return;
+    }
+    
+    // 第一步：RGB → LMS（线性光）
+    float lms[3];
+    MultiplyMatrix3x3(RGB_TO_LMS_MATRIX, rgb, lms);
+    
+    // 确保LMS值非负
+    lms[0] = std::max(0.0f, lms[0]);
+    lms[1] = std::max(0.0f, lms[1]);
+    lms[2] = std::max(0.0f, lms[2]);
+    
+    // 第二步：LMS → LMS'（立方根）
+    float lms_prime[3];
+    lms_prime[0] = CubeRoot(lms[0]);
+    lms_prime[1] = CubeRoot(lms[1]);
+    lms_prime[2] = CubeRoot(lms[2]);
+    
+    // 第三步：LMS' → OKLab
+    MultiplyMatrix3x3(LMS_TO_OKLAB_MATRIX, lms_prime, oklab);
+    
+    // 验证输出
+    if (!NumericalUtils::IsFiniteRGB(oklab)) {
+        oklab[0] = oklab[1] = oklab[2] = 0.0f;
+    }
+}
+
+// OKLab to RGB conversion
+void ColorSpaceConverter::OKLab_to_RGB(const float* oklab, float* rgb) {
+    // 验证输入
+    if (!NumericalUtils::IsFiniteRGB(oklab)) {
+        rgb[0] = rgb[1] = rgb[2] = 0.0f;
+        return;
+    }
+    
+    // 第一步：OKLab → LMS'
+    float lms_prime[3];
+    MultiplyMatrix3x3(OKLAB_TO_LMS_MATRIX, oklab, lms_prime);
+    
+    // 第二步：LMS' → LMS（立方）
+    float lms[3];
+    lms[0] = CubePower(lms_prime[0]);
+    lms[1] = CubePower(lms_prime[1]);
+    lms[2] = CubePower(lms_prime[2]);
+    
+    // 第三步：LMS → RGB
+    MultiplyMatrix3x3(LMS_TO_RGB_MATRIX, lms, rgb);
+    
+    // 验证输出
+    if (!NumericalUtils::IsFiniteRGB(rgb)) {
+        rgb[0] = rgb[1] = rgb[2] = 0.0f;
+    }
+}
+
+// 应用基础饱和度调节（在OKLab空间中）
+void ColorSpaceConverter::ApplyBaseSaturation(float* oklab, float saturation) {
+    // 验证输入
+    if (!NumericalUtils::IsFiniteRGB(oklab) || !NumericalUtils::IsFinite(saturation)) {
+        return;
+    }
+    
+    // 钳制饱和度参数到有效范围
+    saturation = std::clamp(saturation, 0.0f, 2.0f);
+    
+    // 在OKLab中，a和b通道控制色度，L通道控制亮度
+    // 饱和度调节：缩放a和b通道，保持L通道不变
+    oklab[1] *= saturation;  // a通道
+    oklab[2] *= saturation;  // b通道
+    
+    // L通道保持不变：oklab[0] = oklab[0]
+}
+
+// 应用高光区域饱和度调节
+void ColorSpaceConverter::ApplyHighlightSaturation(float* oklab, float saturation, float weight) {
+    // 验证输入
+    if (!NumericalUtils::IsFiniteRGB(oklab) || 
+        !NumericalUtils::IsFinite(saturation) || 
+        !NumericalUtils::IsFinite(weight)) {
+        return;
+    }
+    
+    // 钳制参数到有效范围
+    saturation = std::clamp(saturation, 0.0f, 2.0f);
+    weight = std::clamp(weight, 0.0f, 1.0f);
+    
+    // 计算高光饱和度的增量效果
+    // 当前饱和度 = 1.0（基础），目标饱和度 = saturation
+    // 应用权重混合：current + weight * (target - current)
+    float target_a = oklab[1] * saturation;
+    float target_b = oklab[2] * saturation;
+    
+    oklab[1] = NumericalUtils::Mix(oklab[1], target_a, weight);
+    oklab[2] = NumericalUtils::Mix(oklab[2], target_b, weight);
+}
+
+// 主要的饱和度处理函数
+void ColorSpaceConverter::ApplySaturation(float* rgb, float sat_base, float sat_hi, float pivot_pq, float x_luminance) {
+    // 验证输入参数
+    if (!NumericalUtils::IsFiniteRGB(rgb) || 
+        !NumericalUtils::IsFinite(sat_base) || 
+        !NumericalUtils::IsFinite(sat_hi) ||
+        !NumericalUtils::IsFinite(pivot_pq) ||
+        !NumericalUtils::IsFinite(x_luminance)) {
+        return;
+    }
+    
+    // 钳制参数到有效范围
+    sat_base = std::clamp(sat_base, 0.0f, 2.0f);
+    sat_hi = std::clamp(sat_hi, 0.0f, 2.0f);
+    pivot_pq = std::clamp(pivot_pq, 0.05f, 0.30f);
+    x_luminance = std::clamp(x_luminance, 0.0f, 1.0f);
+    
+    // 转换到OKLab色彩空间
+    float oklab[3];
+    RGB_to_OKLab(rgb, oklab);
+    
+    // 应用基础饱和度调节（全局）
+    ApplyBaseSaturation(oklab, sat_base);
+    
+    // 计算高光区域权重：w_hi = smoothstep(p, 1, x)
+    float w_hi = NumericalUtils::SmoothStep(pivot_pq, 1.0f, x_luminance);
+    
+    // 应用高光区域饱和度调节
+    ApplyHighlightSaturation(oklab, sat_hi, w_hi);
+    
+    // 转换回RGB
+    OKLab_to_RGB(oklab, rgb);
+    
+    // 确保输出值有效
+    if (!NumericalUtils::IsFiniteRGB(rgb)) {
+        rgb[0] = rgb[1] = rgb[2] = 0.0f;
+    }
+}
+
+// 线性色域压制（第一级处理）
+void ColorSpaceConverter::LinearGamutCompression(float* rgb, ColorSpace target_cs) {
+    // 验证输入
+    if (!NumericalUtils::IsFiniteRGB(rgb)) {
+        return;
+    }
+    
+    // 根据目标色彩空间应用线性压制
+    switch (target_cs) {
+        case ColorSpace::P3_D65:
+        case ColorSpace::BT2020_PQ:
+        case ColorSpace::REC709: {
+            // 对于标准色域，使用简单的线性压制
+            // 找到最大的越界值
+            float max_val = std::max({rgb[0], rgb[1], rgb[2]});
+            if (max_val > 1.0f) {
+                // 线性缩放到[0,1]范围
+                float scale = 1.0f / max_val;
+                rgb[0] *= scale;
+                rgb[1] *= scale;
+                rgb[2] *= scale;
+            }
+            
+            // 处理负值
+            rgb[0] = std::max(0.0f, rgb[0]);
+            rgb[1] = std::max(0.0f, rgb[1]);
+            rgb[2] = std::max(0.0f, rgb[2]);
+            break;
+        }
+        
+        case ColorSpace::ACESG: {
+            // ACEScg允许更宽的范围，使用更宽松的压制
+            float scale = 1.0f;
+            float max_val = std::max({rgb[0], rgb[1], rgb[2]});
+            if (max_val > 2.0f) {
+                scale = 2.0f / max_val;
+                rgb[0] *= scale;
+                rgb[1] *= scale;
+                rgb[2] *= scale;
+            }
+            
+            // 处理过度负值
+            rgb[0] = std::max(-0.5f, rgb[0]);
+            rgb[1] = std::max(-0.5f, rgb[1]);
+            rgb[2] = std::max(-0.5f, rgb[2]);
+            break;
+        }
+        
+        default:
+            // 默认处理：基本钳制
+            NumericalUtils::SaturateRGB(rgb);
+            break;
+    }
+}
+
+// 感知色域夹持（第二级处理，在OKLab中进行）
+void ColorSpaceConverter::PerceptualGamutClamp(float* rgb, ColorSpace target_cs) {
+    // 验证输入
+    if (!NumericalUtils::IsFiniteRGB(rgb)) {
+        return;
+    }
+    
+    // 转换到OKLab进行感知均匀的处理
+    float oklab[3];
+    RGB_to_OKLab(rgb, oklab);
+    
+    // 在OKLab空间中进行感知夹持
+    // 保持亮度L不变，调整色度a,b使其回到有效色域
+    
+    // 迭代方法：逐步减少色度直到回到色域内
+    const int max_iterations = 10;
+    const float reduction_factor = 0.9f;
+    
+    for (int i = 0; i < max_iterations; ++i) {
+        // 转换回RGB检查是否在色域内
+        float test_rgb[3];
+        OKLab_to_RGB(oklab, test_rgb);
+        
+        if (IsInGamut(test_rgb, target_cs)) {
+            // 已经在色域内，使用当前值
+            rgb[0] = test_rgb[0];
+            rgb[1] = test_rgb[1];
+            rgb[2] = test_rgb[2];
+            return;
+        }
+        
+        // 减少色度（a, b通道）
+        oklab[1] *= reduction_factor;
+        oklab[2] *= reduction_factor;
+    }
+    
+    // 如果迭代后仍然越界，使用最终的钳制
+    float final_rgb[3];
+    OKLab_to_RGB(oklab, final_rgb);
+    ClampToGamut(final_rgb, target_cs);
+    
+    rgb[0] = final_rgb[0];
+    rgb[1] = final_rgb[1];
+    rgb[2] = final_rgb[2];
+}
+
+// 两级色域处理的主函数
+bool ColorSpaceConverter::ApplyGamutProcessing(float* rgb, ColorSpace target_cs, bool dci_compliance) {
+    // 验证输入
+    if (!NumericalUtils::IsFiniteRGB(rgb)) {
+        return false;
+    }
+    
+    // 记录原始值以检测是否发生了越界
+    float original_rgb[3] = {rgb[0], rgb[1], rgb[2]};
+    bool was_out_of_gamut = !IsInGamut(rgb, target_cs);
+    
+    // 第一级：线性压制（3×3矩阵方法）
+    LinearGamutCompression(rgb, target_cs);
+    
+    // 第二级：感知夹持（OKLab方法）
+    // 在DCI合规模式下总是启用，否则仅在仍然越界时启用
+    if (dci_compliance || !IsInGamut(rgb, target_cs)) {
+        PerceptualGamutClamp(rgb, target_cs);
+        
+        // 在DCI模式下，对sat_hi应用保守衰减（5-10%）
+        if (dci_compliance && was_out_of_gamut) {
+            // 这里可以通过减少饱和度来进一步保守处理
+            // 但这需要在调用此函数之前处理，因为我们在这里已经是RGB域了
+        }
+    }
+    
+    // 最终验证和安全钳制
+    if (!NumericalUtils::IsFiniteRGB(rgb)) {
+        rgb[0] = rgb[1] = rgb[2] = 0.0f;
+        return false;
+    }
+    
+    // 确保最终结果在色域内
+    ClampToGamut(rgb, target_cs);
+    
+    return was_out_of_gamut;  // 返回是否发生了越界处理
+}
+
 } // namespace CinemaProHDR

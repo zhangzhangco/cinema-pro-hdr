@@ -1,0 +1,572 @@
+/**
+ * Cinema Pro HDR DCTL 实现
+ * 
+ * 用途：在DaVinci Resolve中提供实时HDR色调映射
+ * 支持：PPR和RLOG两种色调映射曲线
+ * 优化：GPU性能优化，避免分支，使用权重混合
+ * 
+ * 版本：1.0
+ * 作者：Cinema Pro HDR Team
+ */
+
+// =============================================================================
+// 全局参数定义（通过Resolve UI传递）
+// =============================================================================
+
+// 曲线选择和基础参数
+__CONSTANT__ int cph_curve_type = 0;        // 0=PPR, 1=RLOG
+__CONSTANT__ float cph_pivot = 0.18f;       // 枢轴点 [0.05, 0.30]
+__CONSTANT__ float cph_deterministic = 0.0f; // 确定性模式开关 (0.0=关闭, 1.0=开启)
+
+// PPR参数
+__CONSTANT__ float cph_gamma_s = 1.25f;     // 阴影伽马 [1.0, 1.6]
+__CONSTANT__ float cph_gamma_h = 1.10f;     // 高光伽马 [0.8, 1.4]
+__CONSTANT__ float cph_shoulder = 1.5f;     // 肩部参数 [0.5, 3.0]
+
+// RLOG参数
+__CONSTANT__ float cph_rlog_a = 8.5f;       // 暗部参数 [1.0, 16.0]
+__CONSTANT__ float cph_rlog_b = 1.0f;       // 高光增益 [0.8, 1.2]
+__CONSTANT__ float cph_rlog_c = 1.75f;      // 高光压缩 [0.5, 3.0]
+__CONSTANT__ float cph_rlog_t = 0.55f;      // 拼接阈值 [0.4, 0.7]
+
+// 软膝和toe参数
+__CONSTANT__ float cph_yknee = 0.97f;       // 软膝点 [0.95, 0.99]
+__CONSTANT__ float cph_alpha = 0.6f;        // 软膝强度 [0.2, 1.0]
+__CONSTANT__ float cph_toe = 0.002f;        // toe夹持 [0.0, 0.01]
+
+// 高光细节和饱和度参数
+__CONSTANT__ float cph_highlight_detail = 0.3f; // 高光细节强度 [0.0, 1.0]
+__CONSTANT__ float cph_sat_base = 1.0f;     // 基础饱和度 [0.0, 2.0]
+__CONSTANT__ float cph_sat_hi = 0.95f;      // 高光饱和度 [0.0, 2.0]
+
+// DCI合规模式
+__CONSTANT__ float cph_dci_compliance = 0.0f; // DCI合规模式 (0.0=关闭, 1.0=开启)
+
+// =============================================================================
+// PQ EOTF/OETF 函数实现（ST 2084标准）
+// =============================================================================
+
+// PQ常数（ST 2084）
+#define PQ_M1 0.1593017578125f      // 2610/16384
+#define PQ_M2 78.84375f             // 2523/32
+#define PQ_C1 0.8359375f            // 3424/4096
+#define PQ_C2 18.8515625f           // 2413/128
+#define PQ_C3 18.6875f              // 2392/128
+
+/**
+ * PQ EOTF函数：将PQ编码值转换为线性光
+ * @param pq_value PQ编码输入值 [0,1]
+ * @return 线性光输出值 [0,10000] cd/m²
+ */
+__DEVICE__ float PQ_EOTF(float pq_value) {
+    // 边界保护
+    pq_value = _clampf(pq_value, 0.0f, 1.0f);
+    if (pq_value <= 0.0f) return 0.0f;
+    if (pq_value >= 1.0f) return 10000.0f;
+    
+    // ST 2084 EOTF公式
+    float pq_pow = _powf(pq_value, 1.0f / PQ_M2);
+    float numerator = _fmaxf(0.0f, pq_pow - PQ_C1);
+    float denominator = PQ_C2 - PQ_C3 * pq_pow;
+    
+    // 防护：避免除零
+    denominator = _fmaxf(denominator, 1e-8f);
+    
+    float linear = _powf(numerator / denominator, 1.0f / PQ_M1);
+    return linear * 10000.0f; // 转换为cd/m²
+}
+
+/**
+ * PQ OETF函数：将线性光转换为PQ编码值
+ * @param linear_value 线性光输入值 [0,10000] cd/m²
+ * @return PQ编码输出值 [0,1]
+ */
+__DEVICE__ float PQ_OETF(float linear_value) {
+    // 边界保护
+    if (linear_value <= 0.0f) return 0.0f;
+    
+    float normalized = linear_value / 10000.0f; // 归一化
+    normalized = _clampf(normalized, 0.0f, 1.0f);
+    if (normalized >= 1.0f) return 1.0f;
+    
+    float pow_m1 = _powf(normalized, PQ_M1);
+    float numerator = PQ_C1 + PQ_C2 * pow_m1;
+    float denominator = 1.0f + PQ_C3 * pow_m1;
+    
+    // 防护：避免除零
+    denominator = _fmaxf(denominator, 1e-8f);
+    
+    return _powf(numerator / denominator, PQ_M2);
+}
+
+// =============================================================================
+// 数值稳定性和辅助函数
+// =============================================================================
+
+/**
+ * 安全的幂函数：避免NaN/Inf
+ */
+__DEVICE__ float SafePow(float base, float exponent) {
+    if (base <= 0.0f) return 0.0f;
+    if (!isfinite(base) || !isfinite(exponent)) return 0.0f;
+    
+    float result = _powf(base, exponent);
+    return isfinite(result) ? result : 0.0f;
+}
+
+/**
+ * 安全的对数函数：避免NaN/Inf
+ */
+__DEVICE__ float SafeLog(float value) {
+    if (value <= 0.0f) return -10.0f; // 安全最小值
+    if (!isfinite(value)) return 0.0f;
+    
+    float result = _logf(value);
+    return isfinite(result) ? result : 0.0f;
+}
+
+/**
+ * 安全的除法：避免除零
+ */
+__DEVICE__ float SafeDivide(float numerator, float denominator, float fallback) {
+    if (_fabs(denominator) < 1e-8f) return fallback;
+    if (!isfinite(numerator) || !isfinite(denominator)) return fallback;
+    
+    float result = numerator / denominator;
+    return isfinite(result) ? result : fallback;
+}
+
+/**
+ * SmoothStep函数：平滑插值
+ */
+__DEVICE__ float SmoothStep(float edge0, float edge1, float x) {
+    if (edge1 <= edge0) return x >= edge1 ? 1.0f : 0.0f;
+    
+    float t = _clampf((x - edge0) / (edge1 - edge0), 0.0f, 1.0f);
+    return t * t * (3.0f - 2.0f * t);
+}
+
+/**
+ * 线性混合函数
+ */
+__DEVICE__ float Mix(float a, float b, float t) {
+    t = _clampf(t, 0.0f, 1.0f);
+    return a * (1.0f - t) + b * t;
+}
+
+/**
+ * 数值保护：修复NaN/Inf值
+ */
+__DEVICE__ float FixInvalid(float value, float fallback) {
+    return isfinite(value) ? value : fallback;
+}
+
+/**
+ * RGB数值保护
+ */
+__DEVICE__ float3 FixInvalidRGB(float3 rgb, float3 fallback) {
+    return make_float3(
+        FixInvalid(rgb.x, fallback.x),
+        FixInvalid(rgb.y, fallback.y),
+        FixInvalid(rgb.z, fallback.z)
+    );
+}
+
+// =============================================================================
+// PPR (Pivoted Power-Rational) 算法实现
+// =============================================================================
+
+/**
+ * PPR阴影段计算
+ */
+__DEVICE__ float PPR_ShadowSegment(float x, float pivot, float gamma_s) {
+    if (x <= 0.0f) return 0.0f;
+    if (pivot <= 0.0f) return x; // 防护
+    if (x >= pivot) return pivot; // 在枢轴点处返回枢轴值
+    
+    float normalized_x = x / pivot;
+    float power_result = SafePow(normalized_x, gamma_s);
+    
+    return power_result * pivot;
+}
+
+/**
+ * PPR高光段计算
+ */
+__DEVICE__ float PPR_HighlightSegment(float x, float pivot, float gamma_h, float shoulder) {
+    if (x <= pivot) return pivot; // 在枢轴点以下返回枢轴值
+    
+    // 将输入映射到[0,1]范围，其中pivot映射到0
+    float normalized_x = SafeDivide(x - pivot, 1.0f - pivot, 0.0f);
+    normalized_x = _clampf(normalized_x, 0.0f, 1.0f);
+    
+    // 应用有理式函数
+    float denominator = 1.0f + shoulder * normalized_x;
+    denominator = _fmaxf(denominator, 1e-8f); // 防护
+    
+    float rational_part = normalized_x / denominator;
+    float highlight_result = SafePow(rational_part, gamma_h);
+    
+    // 将结果映射回[pivot,1]范围
+    return pivot + highlight_result * (1.0f - pivot);
+}
+
+/**
+ * PPR主算法：使用权重混合避免分支
+ */
+__DEVICE__ float ApplyPPR(float x, float pivot, float gamma_s, float gamma_h, float shoulder) {
+    // 输入保护
+    x = _clampf(x, 0.0f, 1.0f);
+    
+    // 计算两个段的值
+    float shadow_value = PPR_ShadowSegment(x, pivot, gamma_s);
+    float highlight_value = PPR_HighlightSegment(x, pivot, gamma_h, shoulder);
+    
+    // 使用平滑混合避免硬切换
+    float blend_range = pivot * 0.1f; // 10%的混合范围
+    float blend_start = _fmaxf(0.0f, pivot - blend_range);
+    float blend_end = _fminf(1.0f, pivot + blend_range);
+    
+    // 计算混合权重（避免分支）
+    float weight = SmoothStep(blend_start, blend_end, x);
+    
+    // 权重混合：0表示阴影段，1表示高光段
+    return Mix(shadow_value, highlight_value, weight);
+}
+
+// =============================================================================
+// RLOG (Rational Logarithmic) 算法实现
+// =============================================================================
+
+/**
+ * RLOG暗部段计算
+ */
+__DEVICE__ float RLOG_DarkSegment(float x, float a) {
+    if (x <= 0.0f) return 0.0f;
+    if (x >= 1.0f) return 1.0f;
+    
+    // 暗部：y1 = log(1 + a*x) / log(1 + a)
+    float numerator = SafeLog(1.0f + a * x);
+    float denominator = SafeLog(1.0f + a);
+    
+    return SafeDivide(numerator, denominator, x);
+}
+
+/**
+ * RLOG高光段计算
+ */
+__DEVICE__ float RLOG_HighlightSegment(float x, float b, float c) {
+    if (x <= 0.0f) return 0.0f;
+    if (x >= 1.0f) return SafeDivide(b, 1.0f + c, 1.0f); // 在x=1处的值
+    
+    // 高光：y2 = (b*x) / (1 + c*x)
+    float denominator = 1.0f + c * x;
+    denominator = _fmaxf(denominator, 1e-8f); // 防护
+    
+    return (b * x) / denominator;
+}
+
+/**
+ * RLOG主算法：使用权重混合避免分支
+ */
+__DEVICE__ float ApplyRLOG(float x, float a, float b, float c, float t) {
+    // 输入保护
+    x = _clampf(x, 0.0f, 1.0f);
+    
+    const float blend_range = 0.05f; // 拼接区间半宽
+    
+    // 计算拼接点处暗部段的值，用于调整高光段
+    float dark_at_t = RLOG_DarkSegment(t, a);
+    float highlight_raw_at_t = RLOG_HighlightSegment(t, b, c);
+    
+    // 计算高光段的调整系数，确保在拼接点连续
+    float scale_factor = SafeDivide(dark_at_t, highlight_raw_at_t, 1.0f);
+    
+    float y1 = RLOG_DarkSegment(x, a);
+    float y2 = RLOG_HighlightSegment(x, b, c) * scale_factor;
+    
+    // 在拼接区间进行平滑混合（避免分支）
+    float blend_start = t - blend_range;
+    float blend_end = t + blend_range;
+    float blend_weight = SmoothStep(blend_start, blend_end, x);
+    
+    return Mix(y1, y2, blend_weight);
+}
+
+// =============================================================================
+// 软膝和Toe处理
+// =============================================================================
+
+/**
+ * 软膝处理：在接近1.0的区域进行平滑压缩
+ */
+__DEVICE__ float ApplySoftKnee(float y, float yknee, float alpha) {
+    if (y <= yknee) return y; // 膝点以下不处理
+    
+    // 软膝函数：平滑压缩超过膝点的部分
+    float excess = y - yknee;
+    float max_excess = 1.0f - yknee;
+    max_excess = _fmaxf(max_excess, 1e-8f); // 防护
+    
+    float normalized_excess = excess / max_excess;
+    float compressed_excess = SafeDivide(normalized_excess, 1.0f + alpha * normalized_excess, normalized_excess);
+    
+    return yknee + compressed_excess * max_excess;
+}
+
+/**
+ * Toe夹持：在接近0.0的区域进行提升
+ */
+__DEVICE__ float ApplyToeClamp(float y, float toe) {
+    if (toe <= 0.0f || y <= 0.0f) return y; // 无toe处理或输入为0
+    
+    // 简单的线性提升
+    return _fmaxf(y, toe);
+}
+
+// =============================================================================
+// 统计收集函数
+// =============================================================================
+
+/**
+ * 计算PQ编码的MaxRGB值
+ */
+__DEVICE__ float ComputePqEncodedMaxRGB(float3 rgb_pq) {
+    return _fmaxf(_fmaxf(rgb_pq.x, rgb_pq.y), rgb_pq.z);
+}
+
+/**
+ * 更新统计信息（简化版，用于实时显示）
+ * 注意：DCTL中无法直接更新全局状态，这里仅作为接口预留
+ */
+__DEVICE__ void UpdateStatistics(float pq_max_rgb) {
+    // 在实际实现中，统计信息需要通过其他机制收集
+    // 例如通过Resolve的回调或外部统计收集系统
+}
+
+// =============================================================================
+// OKLab色彩空间转换（简化版）
+// =============================================================================
+
+// OKLab转换矩阵
+#define RGB_TO_LMS_00  0.4122214708f
+#define RGB_TO_LMS_01  0.5363325363f
+#define RGB_TO_LMS_02  0.0514459929f
+#define RGB_TO_LMS_10  0.2119034982f
+#define RGB_TO_LMS_11  0.6806995451f
+#define RGB_TO_LMS_12  0.1073969566f
+#define RGB_TO_LMS_20  0.0883024619f
+#define RGB_TO_LMS_21  0.2817188376f
+#define RGB_TO_LMS_22  0.6299787005f
+
+#define LMS_TO_OKLAB_00  0.2104542553f
+#define LMS_TO_OKLAB_01  0.7936177850f
+#define LMS_TO_OKLAB_02 -0.0040720468f
+#define LMS_TO_OKLAB_10  1.9779984951f
+#define LMS_TO_OKLAB_11 -2.4285922050f
+#define LMS_TO_OKLAB_12  0.4505937099f
+#define LMS_TO_OKLAB_20  0.0259040371f
+#define LMS_TO_OKLAB_21  0.7827717662f
+#define LMS_TO_OKLAB_22 -0.8086757660f
+
+/**
+ * 立方根函数（支持负数）
+ */
+__DEVICE__ float CubeRoot(float x) {
+    if (x >= 0.0f) {
+        return _powf(x, 1.0f / 3.0f);
+    } else {
+        return -_powf(-x, 1.0f / 3.0f);
+    }
+}
+
+/**
+ * RGB到OKLab转换（简化版）
+ */
+__DEVICE__ float3 RGB_to_OKLab(float3 rgb) {
+    // 第一步：RGB → LMS
+    float lms_l = RGB_TO_LMS_00 * rgb.x + RGB_TO_LMS_01 * rgb.y + RGB_TO_LMS_02 * rgb.z;
+    float lms_m = RGB_TO_LMS_10 * rgb.x + RGB_TO_LMS_11 * rgb.y + RGB_TO_LMS_12 * rgb.z;
+    float lms_s = RGB_TO_LMS_20 * rgb.x + RGB_TO_LMS_21 * rgb.y + RGB_TO_LMS_22 * rgb.z;
+    
+    // 确保LMS值非负
+    lms_l = _fmaxf(0.0f, lms_l);
+    lms_m = _fmaxf(0.0f, lms_m);
+    lms_s = _fmaxf(0.0f, lms_s);
+    
+    // 第二步：LMS → LMS'（立方根）
+    float lms_prime_l = CubeRoot(lms_l);
+    float lms_prime_m = CubeRoot(lms_m);
+    float lms_prime_s = CubeRoot(lms_s);
+    
+    // 第三步：LMS' → OKLab
+    float oklab_l = LMS_TO_OKLAB_00 * lms_prime_l + LMS_TO_OKLAB_01 * lms_prime_m + LMS_TO_OKLAB_02 * lms_prime_s;
+    float oklab_a = LMS_TO_OKLAB_10 * lms_prime_l + LMS_TO_OKLAB_11 * lms_prime_m + LMS_TO_OKLAB_12 * lms_prime_s;
+    float oklab_b = LMS_TO_OKLAB_20 * lms_prime_l + LMS_TO_OKLAB_21 * lms_prime_m + LMS_TO_OKLAB_22 * lms_prime_s;
+    
+    return make_float3(oklab_l, oklab_a, oklab_b);
+}
+
+/**
+ * OKLab到RGB转换（简化版）
+ */
+__DEVICE__ float3 OKLab_to_RGB(float3 oklab) {
+    // 逆转换矩阵（预计算）
+    const float OKLAB_TO_LMS_00 = 0.99999999845051981432f;
+    const float OKLAB_TO_LMS_01 = 0.39633779217376785678f;
+    const float OKLAB_TO_LMS_02 = 0.21580375806075880339f;
+    const float OKLAB_TO_LMS_10 = 1.0000000088817607767f;
+    const float OKLAB_TO_LMS_11 = -0.1055613423236563494f;
+    const float OKLAB_TO_LMS_12 = -0.063854174771705903402f;
+    const float OKLAB_TO_LMS_20 = 1.0000000546724109177f;
+    const float OKLAB_TO_LMS_21 = -0.089484182094965759684f;
+    const float OKLAB_TO_LMS_22 = -1.2914855378640917399f;
+    
+    const float LMS_TO_RGB_00 = 4.0767416621f;
+    const float LMS_TO_RGB_01 = -3.3077115913f;
+    const float LMS_TO_RGB_02 = 0.2309699292f;
+    const float LMS_TO_RGB_10 = -1.2684380046f;
+    const float LMS_TO_RGB_11 = 2.6097574011f;
+    const float LMS_TO_RGB_12 = -0.3413193965f;
+    const float LMS_TO_RGB_20 = -0.0041960863f;
+    const float LMS_TO_RGB_21 = -0.7034186147f;
+    const float LMS_TO_RGB_22 = 1.7076147010f;
+    
+    // 第一步：OKLab → LMS'
+    float lms_prime_l = OKLAB_TO_LMS_00 * oklab.x + OKLAB_TO_LMS_01 * oklab.y + OKLAB_TO_LMS_02 * oklab.z;
+    float lms_prime_m = OKLAB_TO_LMS_10 * oklab.x + OKLAB_TO_LMS_11 * oklab.y + OKLAB_TO_LMS_12 * oklab.z;
+    float lms_prime_s = OKLAB_TO_LMS_20 * oklab.x + OKLAB_TO_LMS_21 * oklab.y + OKLAB_TO_LMS_22 * oklab.z;
+    
+    // 第二步：LMS' → LMS（立方）
+    float lms_l = lms_prime_l * lms_prime_l * lms_prime_l;
+    float lms_m = lms_prime_m * lms_prime_m * lms_prime_m;
+    float lms_s = lms_prime_s * lms_prime_s * lms_prime_s;
+    
+    // 第三步：LMS → RGB
+    float rgb_r = LMS_TO_RGB_00 * lms_l + LMS_TO_RGB_01 * lms_m + LMS_TO_RGB_02 * lms_s;
+    float rgb_g = LMS_TO_RGB_10 * lms_l + LMS_TO_RGB_11 * lms_m + LMS_TO_RGB_12 * lms_s;
+    float rgb_b = LMS_TO_RGB_20 * lms_l + LMS_TO_RGB_21 * lms_m + LMS_TO_RGB_22 * lms_s;
+    
+    return make_float3(rgb_r, rgb_g, rgb_b);
+}
+
+/**
+ * 应用饱和度处理（在OKLab空间中）
+ */
+__DEVICE__ float3 ApplySaturation(float3 rgb, float sat_base, float sat_hi, float pivot, float x_luminance) {
+    // 转换到OKLab色彩空间
+    float3 oklab = RGB_to_OKLab(rgb);
+    
+    // 应用基础饱和度调节（全局）
+    oklab.y *= sat_base;  // a通道
+    oklab.z *= sat_base;  // b通道
+    
+    // 计算高光区域权重：w_hi = smoothstep(p, 1, x)
+    float w_hi = SmoothStep(pivot, 1.0f, x_luminance);
+    
+    // 应用高光区域饱和度调节
+    float target_a = oklab.y * sat_hi;
+    float target_b = oklab.z * sat_hi;
+    
+    oklab.y = Mix(oklab.y, target_a, w_hi);
+    oklab.z = Mix(oklab.z, target_b, w_hi);
+    
+    // 转换回RGB
+    return OKLab_to_RGB(oklab);
+}
+
+// =============================================================================
+// 主变换函数
+// =============================================================================
+
+/**
+ * Cinema Pro HDR主变换函数
+ * 
+ * 处理流程：
+ * 1. 输入域 → 工作域（BT.2020+PQ归一化）
+ * 2. 色调映射（PPR或RLOG）
+ * 3. 软膝和toe处理
+ * 4. 高光细节处理（简化版）
+ * 5. 饱和度处理（OKLab）
+ * 6. 统计收集
+ * 7. 输出域转换
+ */
+__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
+    // 输入RGB值
+    float3 input_rgb = make_float3(p_R, p_G, p_B);
+    
+    // 数值保护：修复任何NaN/Inf值
+    input_rgb = FixInvalidRGB(input_rgb, make_float3(0.0f, 0.0f, 0.0f));
+    
+    // 钳制到有效范围[0,1]（假设输入已经是PQ归一化域）
+    input_rgb.x = _clampf(input_rgb.x, 0.0f, 1.0f);
+    input_rgb.y = _clampf(input_rgb.y, 0.0f, 1.0f);
+    input_rgb.z = _clampf(input_rgb.z, 0.0f, 1.0f);
+    
+    // 计算亮度（使用MaxRGB方法，适合HDR）
+    float x_luminance = _fmaxf(_fmaxf(input_rgb.x, input_rgb.y), input_rgb.z);
+    
+    // 应用色调映射
+    float mapped_luminance;
+    if (cph_curve_type == 0) {
+        // PPR算法
+        mapped_luminance = ApplyPPR(x_luminance, cph_pivot, cph_gamma_s, cph_gamma_h, cph_shoulder);
+    } else {
+        // RLOG算法
+        mapped_luminance = ApplyRLOG(x_luminance, cph_rlog_a, cph_rlog_b, cph_rlog_c, cph_rlog_t);
+    }
+    
+    // 应用软膝处理
+    mapped_luminance = ApplySoftKnee(mapped_luminance, cph_yknee, cph_alpha);
+    
+    // 应用toe夹持
+    mapped_luminance = ApplyToeClamp(mapped_luminance, cph_toe);
+    
+    // 计算色调映射比例
+    float tone_ratio = SafeDivide(mapped_luminance, x_luminance, 1.0f);
+    
+    // 应用色调映射到RGB通道
+    float3 mapped_rgb = make_float3(
+        input_rgb.x * tone_ratio,
+        input_rgb.y * tone_ratio,
+        input_rgb.z * tone_ratio
+    );
+    
+    // 高光细节处理（简化版）
+    // 在实际实现中，这里应该是USM算法，但DCTL中实现复杂
+    // 这里使用简化的对比度增强作为替代
+    if (cph_highlight_detail > 0.0f && x_luminance > cph_pivot) {
+        float detail_weight = cph_highlight_detail * SmoothStep(cph_pivot, 1.0f, x_luminance);
+        float contrast_boost = 1.0f + detail_weight * 0.2f; // 最大20%的对比度增强
+        
+        mapped_rgb.x = _clampf(mapped_rgb.x * contrast_boost, 0.0f, 1.0f);
+        mapped_rgb.y = _clampf(mapped_rgb.y * contrast_boost, 0.0f, 1.0f);
+        mapped_rgb.z = _clampf(mapped_rgb.z * contrast_boost, 0.0f, 1.0f);
+    }
+    
+    // 应用饱和度处理（在OKLab空间中）
+    if (cph_sat_base != 1.0f || cph_sat_hi != 1.0f) {
+        mapped_rgb = ApplySaturation(mapped_rgb, cph_sat_base, cph_sat_hi, cph_pivot, x_luminance);
+    }
+    
+    // 最终数值保护和钳制
+    mapped_rgb = FixInvalidRGB(mapped_rgb, make_float3(0.0f, 0.0f, 0.0f));
+    mapped_rgb.x = _clampf(mapped_rgb.x, 0.0f, 1.0f);
+    mapped_rgb.y = _clampf(mapped_rgb.y, 0.0f, 1.0f);
+    mapped_rgb.z = _clampf(mapped_rgb.z, 0.0f, 1.0f);
+    
+    // 统计收集（计算PQ编码的MaxRGB）
+    float pq_max_rgb = ComputePqEncodedMaxRGB(mapped_rgb);
+    UpdateStatistics(pq_max_rgb);
+    
+    // DCI合规模式处理（简化版）
+    if (cph_dci_compliance > 0.5f) {
+        // 在DCI模式下应用保守的饱和度衰减
+        float conservative_factor = 0.95f; // 5%的保守衰减
+        mapped_rgb.x *= conservative_factor;
+        mapped_rgb.y *= conservative_factor;
+        mapped_rgb.z *= conservative_factor;
+    }
+    
+    return mapped_rgb;
+}

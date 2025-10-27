@@ -6,7 +6,7 @@
 using namespace CinemaProHDR;
 
 // Test PQ EOTF/OETF functions for ST 2084 compliance
-bool test_pq_functions() {
+TEST(PQFunctions) {
     std::cout << "Testing PQ EOTF/OETF functions..." << std::endl;
     
     // Test known values from ST 2084 standard
@@ -52,7 +52,7 @@ bool test_pq_functions() {
 }
 
 // Test color space transformation matrices
-bool test_color_space_matrices() {
+TEST(ColorSpaceMatrices) {
     std::cout << "Testing color space transformation matrices..." << std::endl;
     
     // Test with known color values
@@ -107,7 +107,7 @@ bool test_color_space_matrices() {
 }
 
 // Test gamut validation functions
-bool test_gamut_validation() {
+TEST(GamutValidation) {
     std::cout << "Testing gamut validation functions..." << std::endl;
     
     // Test in-gamut colors
@@ -152,7 +152,7 @@ bool test_gamut_validation() {
 }
 
 // Test working domain conversions
-bool test_working_domain_conversion() {
+TEST(WorkingDomainConversion) {
     std::cout << "Testing working domain conversions..." << std::endl;
     
     // Create test image
@@ -216,7 +216,7 @@ bool test_working_domain_conversion() {
 }
 
 // Test numerical stability
-bool test_numerical_stability() {
+TEST(ColorSpaceNumericalStability) {
     std::cout << "Testing numerical stability..." << std::endl;
     
     // Test NaN/Inf handling in PQ functions
@@ -271,22 +271,3 @@ bool test_numerical_stability() {
     return true;
 }
 
-int main() {
-    std::cout << "Running enhanced color space tests..." << std::endl;
-    
-    bool all_passed = true;
-    
-    all_passed &= test_pq_functions();
-    all_passed &= test_color_space_matrices();
-    all_passed &= test_gamut_validation();
-    all_passed &= test_working_domain_conversion();
-    all_passed &= test_numerical_stability();
-    
-    if (all_passed) {
-        std::cout << "\nAll enhanced color space tests passed!" << std::endl;
-        return 0;
-    } else {
-        std::cout << "\nSome tests failed!" << std::endl;
-        return 1;
-    }
-}

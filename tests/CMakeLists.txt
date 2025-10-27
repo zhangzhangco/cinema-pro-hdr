@@ -11,11 +11,16 @@ set(TEST_SOURCES
     test_image.cpp
     test_statistics.cpp
     test_error_report.cpp
+    test_error_handler.cpp
     test_color_space.cpp
+    test_color_space_enhanced.cpp
     test_pq_functions.cpp
+    test_tone_mapping.cpp
+    test_highlight_detail.cpp
     test_processor.cpp
     test_numerical_precision.cpp
     test_parameter_validation.cpp
+    test_oklab_saturation.cpp
 )
 
 # Create test executable

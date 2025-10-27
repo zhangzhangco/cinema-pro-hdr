@@ -71,8 +71,11 @@ set(CORE_SOURCES
     src/core/image.cpp
     src/core/statistics.cpp
     src/core/error_report.cpp
+    src/core/error_handler.cpp
     src/core/color_space.cpp
     src/core/pq_functions.cpp
+    src/core/tone_mapping.cpp
+    src/core/highlight_detail.cpp
     src/core/cph_processor.cpp
 )
 
@@ -117,6 +120,16 @@ endif()
 # Command line tools
 if(BUILD_TOOLS)
     add_subdirectory(src/tools)
+endif()
+
+# DCTL validation test
+if(BUILD_TESTS)
+    add_executable(test_dctl_validation src/dctl/test_dctl_validation.cpp)
+    target_include_directories(test_dctl_validation PRIVATE include src/dctl)
+    target_link_libraries(test_dctl_validation cinema_pro_hdr_core)
+    
+    # Add to test suite
+    add_test(NAME DCTLValidation COMMAND test_dctl_validation)
 endif()
 
 # Install targets
